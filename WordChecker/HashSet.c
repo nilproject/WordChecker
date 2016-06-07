@@ -249,7 +249,7 @@ extern _Bool hashSet_contains(const HashSet *const pHashSet, const char *const s
 extern size_t hashSet_count(const HashSet *ptTree)
 {
 	if (!ptTree)
-		return false;
+		return 0;
 
 	hashSet *tree = (hashSet*)ptTree;
 
