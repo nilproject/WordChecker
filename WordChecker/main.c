@@ -78,6 +78,76 @@ static ssize_t getline(char **lineptr, size_t *n, FILE *stream)
 
 #endif
 
+ssize_t readLine(char *lineptr, FILE *stream)
+{
+	if (lineptr == NULL)
+		return -1;
+
+	if (stream == NULL)
+		return -1;
+	
+	int c;
+
+	c = fgetc(stream);
+	if (c == EOF)
+		return -1;
+
+	char *p = lineptr;
+	while (c != EOF)
+	{
+		*p++ = c;
+
+		c = fgetc(stream);
+		if (c == '\n')
+			break;
+	}
+
+	*p++ = '\0';
+	return (p - lineptr) / sizeof(char) - 1;
+}
+
+void load(FILE *file, HashSet *set, char *line)
+{
+	char *cLine = line;
+
+	while (!feof(file))
+	{
+		ssize_t len = readLine(cLine, file);
+
+		if (!hashSet_insert(set, cLine, false))
+		{
+			printf("\nout-of-memory");
+			return EXIT_FAILURE;
+		}
+
+		cLine += len + 1;
+	}
+
+	fclose(file);
+}
+
+void loop(HashSet *set)
+{
+	size_t len = 0;
+	char *tline = calloc(1, sizeof(char));
+	for (;;)
+	{
+		ssize_t lastIndex = getline(&tline, &len, stdin) - 1;
+		if (tline[lastIndex] == '\n')
+			tline[lastIndex] = '\0';
+
+		if (strcmp(tline, "exit") == 0)
+			break;
+
+		if (hashSet_contains(set, tline))
+			fprintf(stdout, "YES\n");
+		else
+			fprintf(stdout, "NO\n");
+	}
+
+	free(tline);
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 2)
@@ -94,43 +164,19 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
+	fpos_t fileSize;
+	fseek(file, 0, SEEK_END);
+	fgetpos(file, &fileSize);
+	fseek(file, 0, SEEK_SET);
+
+	char *line = calloc(fileSize, sizeof(char));
 	HashSet *set = hashSet_create();
-	char *line = calloc(1, sizeof(char));
-	size_t len = 0;
+	
+	load(file, set, line);
 
-	while (!feof(file))
-	{
-		ssize_t lastIndex = getline(&line, &len, file) - 1;
+	loop(set);
 
-		if (line[lastIndex] == '\n')
-			line[lastIndex] = '\0';
-
-		if (!hashSet_insert(set, line, true))
-		{
-			printf("\nout-of-memory");
-			getchar();
-			return EXIT_FAILURE;
-		}
-	}
-
-	fclose(file);
-
-	for (;;)
-	{
-		ssize_t lastIndex = getline(&line, &len, stdin) - 1;
-		if (line[lastIndex] == '\n')
-			line[lastIndex] = '\0';
-
-		if (strcmp(line, "exit") == 0)
-			break;
-
-		if (hashSet_contains(set, line))
-			fprintf(stdout, "YES\n");
-		else
-			fprintf(stdout, "NO\n");
-	}
-
-	hashSet_free(set, true);
+	hashSet_free(set, false);
 	free(line);
 
 	return 0;

@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -11,8 +10,9 @@
 #define max(x,y) ((x)>(y)?x:y)
 #endif
 
-#define NODES_IN_GROUP (1 << 17)
-#define record(index) groupsOfNodes[(index) / NODES_IN_GROUP][(index) % NODES_IN_GROUP]
+#define NODES_IN_GROUP (1 << 7)
+#define group(index) groupsOfNodes[(index) / NODES_IN_GROUP]
+#define record(index) group(index)[(index) % NODES_IN_GROUP]
 
 typedef struct node
 {
@@ -32,13 +32,15 @@ typedef struct hashSet
 static _Bool increaseSize(hashSet *const set)
 {
 	size_t newNodesAllocated = set->nodesAllocated << 1;
+	if (newNodesAllocated == 0)
+		return false;
 	size_t newGroupsCount = newNodesAllocated / NODES_IN_GROUP;
 
-	node **newNodes = malloc(newGroupsCount * sizeof(node*));
+	node **newNodes = calloc(newGroupsCount, sizeof(node*));
 	if (newNodes == NULL)
 		return false;
 
-	for (size_t i = 0; i < newGroupsCount; i++)
+	/*for (size_t i = 0; i < newGroupsCount; i++)
 	{
 		void* newGroup = calloc(NODES_IN_GROUP, sizeof(node));
 		if (newGroup == NULL)
@@ -51,7 +53,7 @@ static _Bool increaseSize(hashSet *const set)
 		}
 
 		newNodes[i] = newGroup;
-	}
+	}*/
 
 	node **oldNodes = set->groupsOfNodes;
 	set->groupsOfNodes = newNodes;
@@ -60,15 +62,18 @@ static _Bool increaseSize(hashSet *const set)
 
 	for (size_t i = 0; i < newGroupsCount >> 1; i++)
 	{
-		for (size_t j = 0; j < NODES_IN_GROUP; j++)
+		if (oldNodes[i])
 		{
-			if (oldNodes[i][j].key != NULL)
+			for (size_t j = 0; j < NODES_IN_GROUP; j++)
 			{
-				hashSet_insert((HashSet*)set, oldNodes[i][j].key, false);
+				if (oldNodes[i][j].key != NULL)
+				{
+					hashSet_insert((HashSet*)set, oldNodes[i][j].key, false);
+				}
 			}
-		}
 
-		free(oldNodes[i]);
+			free(oldNodes[i]);
+		}
 	}
 
 	free(oldNodes);
@@ -79,9 +84,9 @@ static _Bool increaseSize(hashSet *const set)
 static inline int32_t computeHash(const char *const key, const size_t keyLen)
 {
 	int32_t hash;
-	hash = (int32_t)keyLen * 0x55 ^ 0xe5b5c5;
+	hash = (int32_t)keyLen * 0x55 ^ 0xb5b5b5;
 	for (size_t i = 0; i < keyLen; i++)
-		hash += ((hash >> 25) + (hash << 7)) ^ key[i];
+		hash += ((hash >> 14) + (hash << 7)) ^ key[i];
 	return hash;
 }
 
@@ -145,18 +150,20 @@ extern _Bool hashSet_insert(HashSet *const pHashSet, char *const sKey, const _Bo
 	ssize_t index = hash & mask;
 	size_t colisionCount = 0;
 
-	do
+	if (set->group(index))
 	{
-		if (set->record(index).hash == hash && strcmp(set->record(index).key, sKey) == 0)
+		do
 		{
-			return true;
-		}
+			if (set->record(index).key && set->record(index).hash == hash && strcmp(set->record(index).key, sKey) == 0)
+			{
+				return true;
+			}
 
-		index = set->record(index).next - 1;
-	} 
-	while (index >= 0);
+			index = set->record(index).next - 1;
+		} while (index >= 0);
+	}
 
-	if ((set->itemsCount > 50 && set->itemsCount * 7 / 4 >= mask) || set->itemsCount == mask + 1)
+	if ((set->itemsCount > 50 && set->itemsCount * 8 / 5 >= mask) || set->itemsCount == mask + 1)
 	{
 		if (!increaseSize(set))
 			return false;
@@ -167,7 +174,7 @@ extern _Bool hashSet_insert(HashSet *const pHashSet, char *const sKey, const _Bo
 	size_t prewIndex = 0;
 	index = hash & mask;
 
-	if (set->record(index).key != NULL)
+	if (set->group(index) && set->record(index).key != NULL)
 	{
 		while (set->record(index).next > 0)
 		{
@@ -177,7 +184,27 @@ extern _Bool hashSet_insert(HashSet *const pHashSet, char *const sKey, const _Bo
 
 		prewIndex = index + 1;
 		while (set->record(index).key != NULL)
-			index = (index + 3) & mask;
+		{
+			index = (index + 7) & mask;
+
+			if (!set->group(index))
+			{
+				node* newGroup = (node*)calloc(NODES_IN_GROUP, sizeof(node));
+				if (!newGroup)
+					return false;
+
+				set->group(index) = newGroup;
+			}
+		}
+	}
+
+	if (!set->group(index))
+	{
+		node* newGroup = (node*)calloc(NODES_IN_GROUP, sizeof(node));
+		if (!newGroup)
+			return false;
+
+		set->group(index) = newGroup;
 	}
 
 	set->record(index).hash = hash;
@@ -196,7 +223,7 @@ extern _Bool hashSet_insert(HashSet *const pHashSet, char *const sKey, const _Bo
 
 	set->itemsCount++;
 
-	if (colisionCount > 29)
+	if (colisionCount > 17)
 		increaseSize(set);
 
 	return true;
@@ -240,8 +267,7 @@ extern _Bool hashSet_contains(const HashSet *const pHashSet, const char *const s
 		}
 
 		index = node->next - 1;
-	} 
-	while (index >= 0);
+	} while (index >= 0);
 
 	return false;
 }
