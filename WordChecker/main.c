@@ -1,10 +1,9 @@
-#define _GNU_SOURCE
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
 
+#include "Tools.h"
 #include "HashSet.h"
 
 #if _WIN32 || _WIN64
@@ -78,55 +77,32 @@ static ssize_t getline(char **lineptr, size_t *n, FILE *stream)
 
 #endif
 
-ssize_t readLine(char *lineptr, FILE *stream)
-{
-	if (lineptr == NULL)
-		return -1;
-
-	if (stream == NULL)
-		return -1;
-	
-	int c;
-
-	c = fgetc(stream);
-	if (c == EOF)
-		return -1;
-
-	char *p = lineptr;
-	while (c != EOF)
-	{
-		*p++ = c;
-
-		c = fgetc(stream);
-		if (c == '\n')
-			break;
-	}
-
-	*p++ = '\0';
-	return (p - lineptr) / sizeof(char) - 1;
-}
-
-void load(FILE *file, HashSet *set, char *line)
+void hsLoad(FILE *file, HashSet *set, char *line)
 {
 	char *cLine = line;
 
 	while (!feof(file))
 	{
-		ssize_t len = readLine(cLine, file);
+		if (fgets(cLine, INT_MAX, file) == 0) // буфер уже подходящего размера, всё посчитано заранеее
+			break;
+
+		size_t len = strlen(cLine);
+		while (cLine[len - 1] == '\n' || cLine[len - 1] == '\r')
+		{
+			cLine[--len] = 0;
+		}
 
 		if (!hashSet_insert(set, cLine, false))
 		{
 			printf("\nout-of-memory");
-			return EXIT_FAILURE;
+			exit(EXIT_FAILURE);
 		}
 
 		cLine += len + 1;
 	}
-
-	fclose(file);
 }
 
-void loop(HashSet *set)
+void hsLoop(HashSet *set)
 {
 	size_t len = 0;
 	char *tline = calloc(1, sizeof(char));
@@ -148,6 +124,137 @@ void loop(HashSet *set)
 	free(tline);
 }
 
+int stringComparer(char **psLeft, char **psRight)
+{
+	return strcmp(*psLeft, *psRight);
+}
+
+int btLoad(FILE *file, char ***pasWords, size_t *piAllocatedCount, char *sLine)
+{
+	char *sCursor = sLine;
+	size_t iUsedCount = 0;
+
+	while (!feof(file))
+	{
+		if (fgets(sCursor, INT_MAX, file) == 0) // буфер уже подходящего размера, всё посчитано заранеее
+			break;
+
+		size_t len = strlen(sCursor);
+		while (sCursor[len - 1] == '\n' || sCursor[len - 1] == '\r')
+		{
+			sCursor[--len] = 0;
+		}
+
+		if (iUsedCount == *piAllocatedCount)
+		{
+			size_t newAllocatedCount = max(2, *piAllocatedCount * 8 / 5);
+			void *newPPWords = realloc(*pasWords, newAllocatedCount * sizeof(char*));
+			if (!newPPWords)
+			{
+				return EXIT_FAILURE;
+			}
+
+			*piAllocatedCount = newAllocatedCount;
+			*pasWords = newPPWords;
+		}
+
+		(*pasWords)[iUsedCount] = sCursor;
+		iUsedCount++;
+		sCursor += len + 1;
+	}
+	
+	realloc(*pasWords, iUsedCount * sizeof(char*));
+	*piAllocatedCount = iUsedCount;
+
+	shellSort(*pasWords, iUsedCount, sizeof(char*), stringComparer);
+
+	return 0;
+}
+
+void btLoop(char **asWords, size_t iCount)
+{
+	size_t len = 0;
+	char *sLine = calloc(1, sizeof(char));
+	for (;;)
+	{
+		ssize_t lastIndex = getline(&sLine, &len, stdin) - 1;
+		if (sLine[lastIndex] == '\n')
+			sLine[lastIndex] = '\0';
+
+		if (strcmp(sLine, "exit") == 0)
+			break;
+
+		ssize_t index = binarySearchMore(asWords, iCount, sizeof(char*), &sLine, stringComparer);
+		if (index == -1 && strcmp(asWords[iCount - 1], sLine) == 0)
+		{
+			index == iCount;
+		}
+
+		index--;
+
+		if (index >= 0 && strcmp(asWords[index], sLine) == 0)
+			fprintf(stdout, "YES\n");
+		else
+			fprintf(stdout, "NO\n");
+	}
+
+	free(sLine);
+}
+
+typedef int testType;
+
+GenCompareFunc(testType)
+
+int testMain()
+{
+	size_t iLen = 18;
+	testType *testArr = malloc(sizeof(testArr[0]) * iLen);
+
+	for (int i = 0; i < iLen; i++)
+	{
+		testArr[i] = iLen - i;
+	}
+
+	shellSort(testArr, iLen, sizeof(testArr[0]), testTypePtrComparer);
+
+	getchar();
+
+	return;
+}
+
+int btMain(const FILE *file, size_t iFileSize)
+{
+	char *pLine = calloc((size_t)iFileSize, sizeof(char));
+	char **asWords = NULL;	
+	size_t iCount = 0;
+
+	int result = btLoad(file, &asWords, &iCount, pLine);
+	if (result)
+		return result;
+
+	fclose(file);
+
+	btLoop(asWords, iCount);
+
+	free(asWords);
+	free(pLine);
+}
+
+int hsMain(const FILE *file, size_t iFileSize)
+{
+	char *line = calloc((size_t)iFileSize, sizeof(char));
+	HashSet *set = hashSet_create();
+
+	hsLoad(file, set, line);
+
+	fclose(file);
+
+	hsLoop(set);
+
+	hashSet_free(set, false);
+	free(line);
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 2)
@@ -164,20 +271,12 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	fpos_t fileSize;
+	fpos_t iFileSize;
 	fseek(file, 0, SEEK_END);
-	fgetpos(file, &fileSize);
+	fgetpos(file, &iFileSize);
 	fseek(file, 0, SEEK_SET);
 
-	char *line = calloc(fileSize, sizeof(char));
-	HashSet *set = hashSet_create();
-	
-	load(file, set, line);
-
-	loop(set);
-
-	hashSet_free(set, false);
-	free(line);
+	return btMain(file, iFileSize);
 
 	return 0;
 }

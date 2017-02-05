@@ -21,12 +21,14 @@
   <ItemGroup>
     <ClCompile Include="HashSet.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="Tools.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="makefile" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HashSet.h" />
+    <ClInclude Include="Tools.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{BFC169C0-874D-4815-8EEF-C2172F1E3979}</ProjectGuid>
