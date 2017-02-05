@@ -4,7 +4,6 @@
 #include <stdbool.h>
 
 #include "Tools.h"
-#include "HashSet.h"
 
 #if _WIN32 || _WIN64
 
@@ -76,53 +75,6 @@ static ssize_t getline(char **lineptr, size_t *n, FILE *stream)
 }
 
 #endif
-
-void hsLoad(FILE *file, HashSet *set, char *line)
-{
-	char *cLine = line;
-
-	while (!feof(file))
-	{
-		if (fgets(cLine, INT_MAX, file) == 0) // буфер уже подходящего размера, всё посчитано заранеее
-			break;
-
-		size_t len = strlen(cLine);
-		while (cLine[len - 1] == '\n' || cLine[len - 1] == '\r')
-		{
-			cLine[--len] = 0;
-		}
-
-		if (!hashSet_insert(set, cLine, false))
-		{
-			printf("\nout-of-memory");
-			exit(EXIT_FAILURE);
-		}
-
-		cLine += len + 1;
-	}
-}
-
-void hsLoop(HashSet *set)
-{
-	size_t len = 0;
-	char *tline = calloc(1, sizeof(char));
-	for (;;)
-	{
-		ssize_t lastIndex = getline(&tline, &len, stdin) - 1;
-		if (tline[lastIndex] == '\n')
-			tline[lastIndex] = '\0';
-
-		if (strcmp(tline, "exit") == 0)
-			break;
-
-		if (hashSet_contains(set, tline))
-			fprintf(stdout, "YES\n");
-		else
-			fprintf(stdout, "NO\n");
-	}
-
-	free(tline);
-}
 
 int stringComparer(char **psLeft, char **psRight)
 {
@@ -201,27 +153,6 @@ void btLoop(char **asWords, size_t iCount)
 	free(sLine);
 }
 
-typedef int testType;
-
-GenCompareFunc(testType)
-
-int testMain()
-{
-	size_t iLen = 18;
-	testType *testArr = malloc(sizeof(testArr[0]) * iLen);
-
-	for (int i = 0; i < iLen; i++)
-	{
-		testArr[i] = iLen - i;
-	}
-
-	shellSort(testArr, iLen, sizeof(testArr[0]), testTypePtrComparer);
-
-	getchar();
-
-	return;
-}
-
 int btMain(const FILE *file, size_t iFileSize)
 {
 	char *pLine = calloc((size_t)iFileSize, sizeof(char));
@@ -238,21 +169,6 @@ int btMain(const FILE *file, size_t iFileSize)
 
 	free(asWords);
 	free(pLine);
-}
-
-int hsMain(const FILE *file, size_t iFileSize)
-{
-	char *line = calloc((size_t)iFileSize, sizeof(char));
-	HashSet *set = hashSet_create();
-
-	hsLoad(file, set, line);
-
-	fclose(file);
-
-	hsLoop(set);
-
-	hashSet_free(set, false);
-	free(line);
 }
 
 int main(int argc, char **argv)
