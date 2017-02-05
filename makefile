@@ -1,7 +1,8 @@
 CC=gcc
 CFLAGS=-c -O2 -std=c99 -Wall -pedantic -Wmissing-declarations
-SOURCES=*.c
-OBJECTS=$(SOURCES:.c=.o)
+SOURCEDIR=WordChecker
+SOURCES=$(wildcard $(SOURCEDIR)/*.c)
+OBJECTS=$(SOURCES:$(SOURCEDIR)/%.c=%.o)
 OUTPUT=wordchecker.a
 
 all: $(OUTPUT)

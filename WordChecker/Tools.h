@@ -1,5 +1,6 @@
 #pragma once
 #include <stdlib.h>
+#include <sys/types.h>
 
 #if _WIN32 || _WIN64
 typedef ptrdiff_t ssize_t;

@@ -13,6 +13,15 @@ ptrdiff_t binarySearchMore(void *pArray, size_t iLen, size_t iItemSize, void *pV
 	if (iLen <= 0)
 		return -1;
 
+	if (iLen <= 4)
+	{
+		for (size_t i = 0; i < iLen; i++)
+		{
+			if (fComparer(ItemPtr(pArray, i, iItemSize), pValue) > 0)
+				return i;
+		}
+	}
+
 	size_t start = 0;
 	size_t end = iLen - 1;
 	size_t index = start + ((end - start) >> 1);
@@ -52,7 +61,7 @@ ptrdiff_t binarySearchMore(void *pArray, size_t iLen, size_t iItemSize, void *pV
 
 void insertionSort(void *pArray, size_t iLen, size_t iItemSize, comparer fComparer)
 {
-	void *pTempBuf = _alloca(iItemSize);
+	void *pTempBuf = malloc(iItemSize);
 
 	for (size_t i = 1; i < iLen; i++)
 	{
@@ -72,14 +81,16 @@ void insertionSort(void *pArray, size_t iLen, size_t iItemSize, comparer fCompar
 			memmove(ItemPtr(pArray, newIndex, iItemSize), pTempBuf, iItemSize);
 		}
 	}
+	
+	free(pTempBuf);
 }
 
 void shellSort(void *pArray, size_t iLen, size_t iItemSize, comparer fComparer)
 {
-	size_t d = iLen / 6;
+	size_t d = iLen / 2;
 	if (d > 1)
 	{
-		void *pTempBuf = _alloca(iItemSize);
+		void *pTempBuf = malloc(iItemSize);
 
 		do
 		{
@@ -94,8 +105,10 @@ void shellSort(void *pArray, size_t iLen, size_t iItemSize, comparer fComparer)
 				}
 			}
 
-			d = d * 15 / 18;
+			d = (d * 5) / 6;
 		} while (d > 1);
+
+		free(pTempBuf);
 	}
 
 	insertionSort(pArray, iLen, iItemSize, fComparer);

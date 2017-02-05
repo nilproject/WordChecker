@@ -2,8 +2,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <limits.h>
+#include <sys/types.h>
 
 #include "Tools.h"
+
+#ifndef max
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#endif
 
 #if _WIN32 || _WIN64
 
@@ -76,19 +82,19 @@ static ssize_t getline(char **lineptr, size_t *n, FILE *stream)
 
 #endif
 
-int stringComparer(char **psLeft, char **psRight)
+static int stringComparer(char **psLeft, char **psRight)
 {
 	return strcmp(*psLeft, *psRight);
 }
 
-int btLoad(FILE *file, char ***pasWords, size_t *piAllocatedCount, char *sLine)
+static int btLoad(const FILE *file, char ***pasWords, size_t *piAllocatedCount, char *sLine)
 {
 	char *sCursor = sLine;
 	size_t iUsedCount = 0;
 
 	while (!feof(file))
 	{
-		if (fgets(sCursor, INT_MAX, file) == 0) // буфер уже подходящего размера, всё посчитано заранеее
+		if (fgets(sCursor, INT_MAX, file) == 0) // all fine, size of buffer is computed
 			break;
 
 		size_t len = strlen(sCursor);
@@ -115,7 +121,7 @@ int btLoad(FILE *file, char ***pasWords, size_t *piAllocatedCount, char *sLine)
 		sCursor += len + 1;
 	}
 	
-	realloc(*pasWords, iUsedCount * sizeof(char*));
+	*pasWords = realloc(*pasWords, iUsedCount * sizeof(char*));
 	*piAllocatedCount = iUsedCount;
 
 	shellSort(*pasWords, iUsedCount, sizeof(char*), stringComparer);
@@ -123,7 +129,7 @@ int btLoad(FILE *file, char ***pasWords, size_t *piAllocatedCount, char *sLine)
 	return 0;
 }
 
-void btLoop(char **asWords, size_t iCount)
+static void btLoop(char **asWords, size_t iCount)
 {
 	size_t len = 0;
 	char *sLine = calloc(1, sizeof(char));
@@ -139,7 +145,7 @@ void btLoop(char **asWords, size_t iCount)
 		ssize_t index = binarySearchMore(asWords, iCount, sizeof(char*), &sLine, stringComparer);
 		if (index == -1 && strcmp(asWords[iCount - 1], sLine) == 0)
 		{
-			index == iCount;
+			index = iCount;
 		}
 
 		index--;
@@ -153,9 +159,10 @@ void btLoop(char **asWords, size_t iCount)
 	free(sLine);
 }
 
-int btMain(const FILE *file, size_t iFileSize)
+static int btMain(const FILE *file, __off64_t iFileSize)
 {
-	char *pLine = calloc((size_t)iFileSize, sizeof(char));
+	size_t size = (size_t)iFileSize;
+	char *pLine = (char*)calloc(size, sizeof(char));
 	char **asWords = NULL;	
 	size_t iCount = 0;
 
@@ -169,6 +176,8 @@ int btMain(const FILE *file, size_t iFileSize)
 
 	free(asWords);
 	free(pLine);
+
+	return 0;
 }
 
 int main(int argc, char **argv)
@@ -187,12 +196,9 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	fpos_t iFileSize;
 	fseek(file, 0, SEEK_END);
-	fgetpos(file, &iFileSize);
+	__off64_t iFileSize = ftello64(file);
 	fseek(file, 0, SEEK_SET);
 
 	return btMain(file, iFileSize);
-
-	return 0;
 }
